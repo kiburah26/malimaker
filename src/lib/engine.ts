@@ -61,8 +61,13 @@ export const toKes = (amount: number, currency: Currency, usdKes: number) =>
 /** Envelope money is kept in whole shillings. */
 const whole = (n: number) => Math.round(n);
 
+/** Money is handed out in whole hundreds; only the Emergency fund takes the odd shillings. */
+const STEP = 100;
+const roundDown = (n: number) => Math.floor(n / STEP) * STEP;
+
 export function monthlyTarget(e: Pick<Envelope, "target" | "period">): number {
-  return e.period === "week" ? (e.target * 52) / 12 : e.target;
+  // a week envelope's month, to the nearest 100 (1,000 a week → 4,300 a month)
+  return e.period === "week" ? Math.round((e.target * 52) / 12 / STEP) * STEP : e.target;
 }
 
 /** What an envelope has to spend this month: its target, or for share envelopes, what came in. */
@@ -302,7 +307,7 @@ export function planIncome(input: PlanInput): SplitPlan {
       const left = Math.max(0, settings.tax_fixed - stat(taxEnv).fundedThisMonth);
       tax = Math.min(remaining, Math.floor(Math.min(left, settings.tax_fixed / ppm)));
     } else {
-      tax = whole((remaining * settings.tax_pct) / 100);
+      tax = roundDown((remaining * settings.tax_pct) / 100);
     }
   }
   if (taxEnv) give(taxEnv, tax);
@@ -320,10 +325,10 @@ export function planIncome(input: PlanInput): SplitPlan {
   const pots = {} as Record<SurplusSlice, number>;
   let potted = 0;
   for (const k of SURPLUS_ORDER) {
-    pots[k] = Math.floor((surplus * (settings.split[k] ?? 0)) / pct);
+    pots[k] = roundDown((surplus * (settings.split[k] ?? 0)) / pct);
     potted += pots[k];
   }
-  pots.emergency += surplus - potted; // rounding crumbs
+  pots.emergency += surplus - potted; // the odd shillings
 
   // 4. Lifestyle. With shares set, the whole pot is divided by share, so it grows and shrinks
   //    with income. Without shares, envelopes fill up to their targets and the rest is saved.
@@ -332,19 +337,27 @@ export function planIncome(input: PlanInput): SplitPlan {
   let lifeFill: { left: number; short: number };
   if (shares.length) {
     const total = shares.reduce((s, e) => s + e.share!, 0);
-    lifeFill = fillWants(pots.lifestyle, shares.map((e) => ({ e, want: (pots.lifestyle * e.share!) / total })), give);
+    lifeFill = fillWants(pots.lifestyle, shares.map((e) => ({ e, want: roundDown((pots.lifestyle * e.share!) / total) })), give);
     lifeFill.short = 0;
   } else {
     lifeFill = fillWants(pots.lifestyle, lifestyle.map((e) => ({ e, want: shareFor(e, stat(e).fundedThisMonth, ppm) })), give);
   }
   let overflow = lifeFill.left;
 
-  // 5. Sinking funds: steady monthly ones first, then goals in priority order
+  // 5. Sinking funds: first repay any sinking envelope that's overspent (e.g. a purchase made
+  //    before the fund was full), then steady monthly ones, then goals in priority order
   const sinking = of("sinking");
+  let sinkLeft = pots.sinking;
+  for (const e of [...sinking].sort((a, b) => a.priority - b.priority)) {
+    const owed = Math.max(0, -whole(stat(e).balance));
+    const amt = Math.min(owed, sinkLeft);
+    give(e, amt);
+    sinkLeft -= amt;
+  }
   const steady = sinking
     .filter((e) => e.target > 0)
     .map((e) => ({ e, want: shareFor(e, stat(e).fundedThisMonth, ppm) }));
-  let sinkLeft = fillWants(pots.sinking, steady, give).left;
+  sinkLeft = fillWants(sinkLeft, steady, give).left;
   for (const e of [...sinking].filter((x) => x.goal_amount).sort((a, b) => a.priority - b.priority)) {
     if (sinkLeft <= 0) break;
     const need = Math.max(0, whole(e.goal_amount! - balanceAfter(e)));

@@ -12,6 +12,7 @@ import {
   netWorth,
   planIncome,
   planSweeps,
+  monthlyTarget,
   readyToAssign,
   simulate,
   weekKey,
@@ -74,7 +75,7 @@ const sum = (lines: { amount: number }[]) => lines.reduce((s, l) => s + l.amount
 test("every shilling of an income gets a job", () => {
   const plan = planIncome({ kes: 254130, taxable: true, settings, groups, envelopes, stats: blank(), debtOwed: 203170 });
   assert.equal(sum(plan.lines), 254130);
-  assert.equal(plan.tax, Math.round(254130 * 0.25));
+  assert.equal(plan.tax, Math.floor((254130 * 0.25) / 100) * 100);
 });
 
 test("a lean split still adds up to the shilling", () => {
@@ -93,7 +94,7 @@ test("tax first, then needs, then the percentage split", () => {
   const surplus = 200000 - 50000 - 18000 - 2600;
   assert.equal(plan.surplus, surplus);
   assert.equal(by("night"), 2500);
-  assert.equal(by("debt"), Math.floor(surplus * 0.2));
+  assert.equal(by("debt"), Math.floor((surplus * 0.2) / 100) * 100);
   // fridge goal is filled before the trip
   assert.ok(by("fridge") > 0 && by("trip") === 0);
 });
@@ -263,8 +264,25 @@ test("lifestyle shares: the whole pot is divided by share and scales with income
   const small = planIncome({ kes: 100000, taxable: false, settings, groups, envelopes: shared, stats: blank(), debtOwed: 0 });
   const big = planIncome({ kes: 300000, taxable: false, settings, groups, envelopes: shared, stats: blank(), debtOwed: 0 });
   const got = (p: typeof small, id: string) => sum(p.lines.filter((l) => l.envelope_id === id));
-  assert.ok(Math.abs(got(small, "night") / got(small, "family") - 70 / 30) < 0.01);
+  assert.ok(Math.abs(got(small, "night") / got(small, "family") - 70 / 30) < 0.1); // shares are in whole hundreds, so small pots round a little
   assert.ok(got(big, "night") > got(small, "night") * 2.5, "more income, more lifestyle");
   assert.equal(small.short.lifestyle, 0);
   assert.equal(sum(big.lines), 300000);
+});
+
+test("whole hundreds: pots and shares are round; only the Emergency fund takes the odd shillings", () => {
+  const shared = envelopes.concat([env("family", "g-life", { share: 30 })]).map((e) => (e.id === "night" ? { ...e, share: 70 } : e));
+  const plan = planIncome({ kes: 162600, taxable: true, settings: { ...settings, tax_fixed: 5000 }, groups, envelopes: shared, stats: blank(), debtOwed: 701670 });
+  for (const l of plan.lines) if (l.envelope_id !== "ef" && l.envelope_id !== "weekly") assert.equal(l.amount % 50, 0, l.envelope_id);
+  assert.equal(sum(plan.lines), 162600);
+  assert.equal(monthlyTarget({ target: 1000, period: "week" }), 4300);
+});
+
+test("sinking funds repay an overspent sinking envelope before saving for goals", () => {
+  const stats = blank();
+  stats.set("repairs", { balance: -30000, fundedThisMonth: 0 });
+  const plan = planIncome({ kes: 200000, taxable: false, settings, groups, envelopes, stats, debtOwed: 0 });
+  const got = (id: string) => sum(plan.lines.filter((l) => l.envelope_id === id));
+  assert.ok(got("repairs") >= 30000, "the hole is repaid first");
+  assert.ok(got("fridge") < plan.bySlice.sinking - 30000 + 1);
 });
