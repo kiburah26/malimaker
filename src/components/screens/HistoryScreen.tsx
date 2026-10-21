@@ -6,9 +6,18 @@ import { Sheet } from "@/components/Sheet";
 import { Bar, Loading, Toggle } from "@/components/ui";
 import { useLoaded, type Loaded } from "@/lib/data";
 import { addMonths, dayKey, monthKey } from "@/lib/engine";
-import { fmtDay, fmtMonth, fmtTime, kes } from "@/lib/format";
+import { fmtDay, fmtMonth, fmtTime, kes, usd } from "@/lib/format";
 import { supabase } from "@/lib/supabase/client";
 import type { Txn } from "@/lib/types";
+
+const KIND_LABEL: Record<Txn["kind"], string> = {
+  expense: "Spent",
+  income: "Income",
+  transfer: "Transfer",
+  debt_payment: "Debt payment",
+  borrow: "Borrowed",
+  adjust: "Balance check",
+};
 
 /** KES value of a row, for history (imported rows don't carry envelope effects). */
 const value = (t: Txn) => t.kes_value ?? (t.amount + (t.kind === "income" ? 0 : t.fee)) * t.rate;
@@ -143,7 +152,9 @@ export function HistoryScreen() {
                   <button type="button" className="flex w-full items-center justify-between gap-3 py-2.5 text-left" onClick={() => t.counts && setOpen(t)} disabled={!t.counts}>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">
-                        {t.kind === "transfer" ? `${acc?.name} → ${accById.get(t.to_account_id ?? "")?.name}` : t.note || t.category || t.kind}
+                        {t.kind === "transfer"
+                          ? `${acc?.name} → ${accById.get(t.to_account_id ?? "")?.name}`
+                          : t.note || t.category || (t.envelope_id && envById.get(t.envelope_id)?.name) || KIND_LABEL[t.kind]}
                       </span>
                       <span className="text-[13px] text-ink-faint">
                         {fmtTime(t.at)} · {t.envelope_id ? envById.get(t.envelope_id)?.name : t.kind === "income" ? "Income" : t.kind === "borrow" ? "Borrowed" : acc?.name}
@@ -154,7 +165,7 @@ export function HistoryScreen() {
                     </span>
                     <span className={`num shrink-0 font-bold ${sign === "+" ? "text-good" : ""}`}>
                       {sign}
-                      {acc?.currency === "USD" && t.kind !== "expense" ? `$${t.amount}` : kes(value(t))}
+                      {acc?.currency === "USD" && t.kind !== "expense" ? usd(t.amount) : kes(value(t))}
                     </span>
                   </button>
                 </li>

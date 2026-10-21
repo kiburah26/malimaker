@@ -75,6 +75,13 @@ test("every shilling of an income gets a job", () => {
   assert.equal(plan.tax, Math.round(254130 * 0.25));
 });
 
+test("a lean split still adds up to the shilling", () => {
+  for (const kes of [129300, 47777, 3001]) {
+    const plan = planIncome({ kes, taxable: true, settings, groups, envelopes, stats: blank(), debtOwed: 203170 });
+    assert.equal(sum(plan.lines), kes);
+  }
+});
+
 test("tax first, then needs, then the percentage split", () => {
   const plan = planIncome({ kes: 200000, taxable: true, settings, groups, envelopes, stats: blank(), debtOwed: 500000 });
   const by = (id: string) => sum(plan.lines.filter((l) => l.envelope_id === id));
@@ -196,14 +203,17 @@ test("month-end sweep moves Night out leftovers to the trip, once", () => {
 
 test("goal pace and on-track", () => {
   const now = new Date("2026-10-21T12:00:00Z");
-  const e = envelopes.find((x) => x.id === "ef")!;
-  const g = goalProgress({ ...e, goal_date: "2027-03-30" }, { balance: 80000 }, [
-    { id: "1", envelope_id: "ef", amount: 100000, at: "2026-10-01T12:00:00Z", kind: "income", txn_id: null, note: null },
-    { id: "2", envelope_id: "ef", amount: 80000, at: "2026-01-01T12:00:00Z", kind: "opening", txn_id: null, note: null },
-  ], now);
-  assert.equal(g.pacePerMonth, 50000);
-  assert.ok(g.neededPerMonth! > 90000);
+  const e = { ...envelopes.find((x) => x.id === "ef")!, goal_date: "2027-03-30" };
+  const income = (id: string, at: string, amount: number): Allocation => ({ id, envelope_id: "ef", amount, at, kind: "income", txn_id: null, note: null });
+  // two months of history: 100k over the last 61 days
+  const g = goalProgress(e, { balance: 80000 }, [income("1", "2026-08-01T12:00:00Z", 40000), income("2", "2026-10-01T12:00:00Z", 100000)], now);
+  assert.equal(g.pacePerMonth, Math.round(100000 / (61 / 30.44)));
+  assert.ok(g.neededPerMonth! > 80000);
   assert.equal(g.onTrack, false);
+  // one paycheck isn't a trend: no pace, no verdict, no projected date
+  const early = goalProgress(e, { balance: 180000 }, [income("3", "2026-10-15T12:00:00Z", 100000)], now);
+  assert.equal(early.onTrack, null);
+  assert.equal(early.projectedMonth, null);
 });
 
 test("move suggestions pair over- and under-funded accounts", () => {

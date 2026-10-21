@@ -116,111 +116,114 @@ body {
   letter-spacing: -0.01em;
 }
 
-.card {
-  background: var(--bg-raised);
-  border: 1px solid var(--rule);
-  border-radius: 18px;
-}
+/* Component classes sit in a layer so Tailwind utilities (w-28, etc.) can override them */
+@layer components {
+  .card {
+    background: var(--bg-raised);
+    border: 1px solid var(--rule);
+    border-radius: 18px;
+  }
 
-.ruled > * + * {
-  border-top: 1px solid var(--rule);
-}
+  .ruled > * + * {
+    border-top: 1px solid var(--rule);
+  }
 
-.tap {
-  min-height: 52px;
-  touch-action: manipulation;
-}
+  .tap {
+    min-height: 52px;
+    touch-action: manipulation;
+  }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 48px;
-  padding: 0 1.1rem;
-  border-radius: 999px;
-  font-weight: 700;
-  touch-action: manipulation;
-}
-.btn-primary {
-  background: var(--gold);
-  color: var(--on-accent);
-}
-.btn-primary:disabled {
-  opacity: 0.45;
-}
-.btn-quiet {
-  border: 1.5px solid var(--rule-strong);
-  color: var(--ink);
-}
-.btn-small {
-  min-height: 36px;
-  padding: 0 0.85rem;
-  font-size: 14px;
-}
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 48px;
+    padding: 0 1.1rem;
+    border-radius: 999px;
+    font-weight: 700;
+    touch-action: manipulation;
+  }
+  .btn-primary {
+    background: var(--gold);
+    color: var(--on-accent);
+  }
+  .btn-primary:disabled {
+    opacity: 0.45;
+  }
+  .btn-quiet {
+    border: 1.5px solid var(--rule-strong);
+    color: var(--ink);
+  }
+  .btn-small {
+    min-height: 36px;
+    padding: 0 0.85rem;
+    font-size: 14px;
+  }
 
-.field {
-  width: 100%;
-  min-height: 50px;
-  padding: 0.7rem 0.9rem;
-  border-radius: 12px;
-  background: var(--bg-sunk);
-  border: 1.5px solid var(--rule);
-  color: var(--ink);
-}
-.field::placeholder {
-  color: var(--ink-faint);
-}
-.field:focus {
-  border-color: var(--focus);
-  outline: none;
-}
-select.field {
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
-    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
-  background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%;
-  background-size: 6px 6px;
-  background-repeat: no-repeat;
-  padding-right: 2.2rem;
-}
+  .field {
+    width: 100%;
+    min-height: 50px;
+    padding: 0.7rem 0.9rem;
+    border-radius: 12px;
+    background: var(--bg-sunk);
+    border: 1.5px solid var(--rule);
+    color: var(--ink);
+  }
+  .field::placeholder {
+    color: var(--ink-faint);
+  }
+  .field:focus {
+    border-color: var(--focus);
+    outline: none;
+  }
+  select.field {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+      linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%;
+    background-size: 6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 2.2rem;
+  }
 
-.label {
-  display: block;
-  margin-bottom: 0.35rem;
-  font-size: 14px;
-  color: var(--ink-soft);
-}
+  .label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 40px;
-  padding: 0 0.85rem;
-  border-radius: 999px;
-  border: 1.5px solid var(--rule-strong);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-  touch-action: manipulation;
-}
-.chip[aria-pressed="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
-}
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 40px;
+    padding: 0 0.85rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--rule-strong);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+  .chip[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--bg);
+  }
 
-.bar {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--bg-sunk);
-  overflow: hidden;
-}
-.bar > span {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
+  .bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--bg-sunk);
+    overflow: hidden;
+  }
+  .bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+  }
 }
 
 @keyframes sheet-up {

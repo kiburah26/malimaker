@@ -139,6 +139,7 @@ function Plan({ m }: { m: Loaded }) {
         <ul className="ruled">
           {sim.goals
             .filter((g) => g.envelope.goal_amount)
+            .sort((a, b) => (a.envelope.goal_date ?? "9999").localeCompare(b.envelope.goal_date ?? "9999"))
             .map((g) => (
               <li key={g.envelope.id} className="flex items-baseline justify-between gap-3 py-2 text-[15px]">
                 <span>

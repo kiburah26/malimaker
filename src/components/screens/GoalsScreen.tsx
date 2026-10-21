@@ -6,7 +6,7 @@ import { EnvelopeSheet } from "@/components/EnvelopeSheet";
 import { Sheet } from "@/components/Sheet";
 import { Bar, Loading, SectionTitle, Toggle } from "@/components/ui";
 import { useLoaded, type Loaded } from "@/lib/data";
-import { addMonths, dayKey, goalProgress, monthKey } from "@/lib/engine";
+import { addMonths, dayKey, goalProgress, hasPaceHistory, monthKey, paceOf } from "@/lib/engine";
 import { fmtDate, fmtMonthShort, kes, kesSigned, parseAmount } from "@/lib/format";
 import type { Debt, Snapshot } from "@/lib/types";
 
@@ -29,13 +29,9 @@ export function GoalsScreen() {
   const open = debts.filter((d) => !d.closed).sort((a, b) => a.priority - b.priority);
   const closed = debts.filter((d) => d.closed);
   const borrowed = (d: Debt) => txns.filter((t) => t.debt_id === d.id && t.kind === "borrow").reduce((s, t) => s + t.amount, 0);
-  // pace = what actually went to debts over the last two months
-  const since = m.now.getTime() - 61 * 86_400_000;
-  const paidRecently = txns.filter((t) => t.kind === "debt_payment" && Date.parse(t.at) >= since).reduce((s, t) => s + t.amount, 0);
-  const fundedRecently = debtEnv
-    ? allocations.filter((a) => a.envelope_id === debtEnv.id && a.amount > 0 && a.kind !== "opening" && Date.parse(a.at) >= since).reduce((s, a) => s + a.amount, 0)
-    : 0;
-  const pace = Math.max(paidRecently, fundedRecently) / 2;
+  // pace = money given to the Debt envelope per month, once there's a month of history
+  const pace = debtEnv ? paceOf(allocations.filter((a) => a.envelope_id === debtEnv.id), allocations, m.now) ?? 0 : 0;
+  const paceKnown = hasPaceHistory(allocations, m.now);
   const nextUp = open.find((d) => (debtBal.get(d.id) ?? 0) > 0);
   const mum = open.find((d) => /mum|mom/i.test(d.name));
   const owedExMum = debtOwed - (mum ? Math.max(0, debtBal.get(mum.id) ?? 0) : 0);
@@ -64,12 +60,12 @@ export function GoalsScreen() {
           <div>
             <p className="text-[13px] text-ink-soft">Everyone but Mum</p>
             <p className="num text-xl font-bold">{kes(owedExMum)}</p>
-            <p className="text-[13px] text-ink-faint">{owedExMum <= 0 ? "Done 🎉" : freeBy(owedExMum) ? `on pace for ${fmtMonthShort(freeBy(owedExMum)!)}` : "log payments to see a date"}</p>
+            <p className="text-[13px] text-ink-faint">{owedExMum <= 0 ? "Done 🎉" : freeBy(owedExMum) ? `on pace for ${fmtMonthShort(freeBy(owedExMum)!)}` : paceKnown ? "no debt money lately" : "a date appears after a month of income"}</p>
           </div>
           <div>
             <p className="text-[13px] text-ink-soft">All debt</p>
             <p className="num text-xl font-bold">{kes(debtOwed)}</p>
-            <p className="text-[13px] text-ink-faint">{freeBy(debtOwed) ? `on pace for ${fmtMonthShort(freeBy(debtOwed)!)}` : "—"}</p>
+            <p className="text-[13px] text-ink-faint">{freeBy(debtOwed) ? `on pace for ${fmtMonthShort(freeBy(debtOwed)!)}` : "see Plan for projections"}</p>
           </div>
         </div>
         {debtEnv && (
@@ -145,9 +141,9 @@ export function GoalsScreen() {
               </p>
               {g.pct < 1 && g.neededPerMonth !== null && (
                 <p className={`mt-1 text-[13px] font-semibold ${g.onTrack ? "text-good" : "text-ink-soft"}`}>
-                  {g.onTrack ? "On track ✓ " : g.pacePerMonth > 0 ? "Behind pace · " : ""}
+                  {g.onTrack ? "On track ✓ " : g.onTrack === false ? "Behind pace · " : ""}
                   needs {kes(g.neededPerMonth)}/month
-                  {g.pacePerMonth > 0 && ` · recent pace ${kes(g.pacePerMonth)}/month`}
+                  {g.onTrack !== null && g.pacePerMonth > 0 && ` · recent pace ${kes(g.pacePerMonth)}/month`}
                   {g.projectedMonth && g.pacePerMonth > 0 && ` · reaches it ${fmtMonthShort(g.projectedMonth)}`}
                 </p>
               )}

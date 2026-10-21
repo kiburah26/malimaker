@@ -255,7 +255,7 @@ function fillWants(
   const scale = Math.min(1, pot / total);
   let used = 0;
   for (const w of wants) {
-    const amt = whole(w.want * scale);
+    const amt = Math.floor(w.want * scale); // round down so the shares never exceed the pot
     if (amt > 0) {
       give(w.e, amt);
       used += amt;
@@ -407,6 +407,40 @@ export const firstIncomeOfMonth = (allocations: Allocation[], now: Date = new Da
 // ---------------------------------------------------------------------------
 // goals
 // ---------------------------------------------------------------------------
+/** A pace needs about a month of income splits behind it; one paycheck isn't a trend. */
+export const PACE_MIN_DAYS = 28;
+
+function firstIncomeAt(allocations: Allocation[]): number | null {
+  let first: number | null = null;
+  for (const a of allocations) {
+    if (a.kind !== "income") continue;
+    const t = Date.parse(a.at);
+    if (first === null || t < first) first = t;
+  }
+  return first;
+}
+
+export function hasPaceHistory(allocations: Allocation[], now: Date = new Date()): boolean {
+  const first = firstIncomeAt(allocations);
+  return first !== null && (now.getTime() - first) / DAY_MS >= PACE_MIN_DAYS;
+}
+
+/**
+ * Average KES a month added by these allocations over the last two months (or since income
+ * logging began, if sooner). Null until there's about a month of history.
+ */
+export function paceOf(rows: Allocation[], allocations: Allocation[], now: Date = new Date()): number | null {
+  const first = firstIncomeAt(allocations);
+  if (first === null) return null;
+  const days = Math.min(61, (now.getTime() - first) / DAY_MS);
+  if (days < PACE_MIN_DAYS) return null;
+  const since = now.getTime() - days * DAY_MS;
+  const added = rows
+    .filter((a) => a.amount > 0 && a.kind !== "opening" && Date.parse(a.at) >= since)
+    .reduce((s, a) => s + a.amount, 0);
+  return whole(added / (days / 30.44));
+}
+
 export type GoalProgress = {
   saved: number;
   goal: number;
@@ -427,11 +461,8 @@ export function goalProgress(
   const goal = e.goal_amount ?? 0;
   const saved = whole(stat?.balance ?? 0);
   const left = Math.max(0, goal - saved);
-  const since = now.getTime() - 61 * DAY_MS;
-  const added = allocations
-    .filter((a) => a.envelope_id === e.id && a.amount > 0 && a.kind !== "opening" && Date.parse(a.at) >= since)
-    .reduce((s, a) => s + a.amount, 0);
-  const pacePerMonth = whole(added / 2);
+  const pacePerMonth = paceOf(allocations.filter((a) => a.envelope_id === e.id), allocations, now) ?? 0;
+  const paceKnown = hasPaceHistory(allocations, now);
   let monthsLeft: number | null = null;
   let neededPerMonth: number | null = null;
   if (e.goal_date) {
@@ -440,8 +471,9 @@ export function goalProgress(
     neededPerMonth = left === 0 ? 0 : monthsLeft > 0 ? whole(left / monthsLeft) : left;
   }
   const projectedMonth =
-    left === 0 ? monthKey(now) : pacePerMonth > 0 ? addMonths(monthKey(now), Math.ceil(left / pacePerMonth)) : null;
-  const onTrack = neededPerMonth === null ? null : left === 0 || (pacePerMonth > 0 && pacePerMonth >= neededPerMonth);
+    left === 0 ? monthKey(now) : paceKnown && pacePerMonth > 0 ? addMonths(monthKey(now), Math.ceil(left / pacePerMonth)) : null;
+  const onTrack =
+    neededPerMonth === null ? null : left === 0 ? true : paceKnown ? pacePerMonth > 0 && pacePerMonth >= neededPerMonth : null;
   return {
     saved,
     goal,

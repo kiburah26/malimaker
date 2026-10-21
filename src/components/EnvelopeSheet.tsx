@@ -85,7 +85,7 @@ function EnvelopeDetail({ m, env, onClose }: { m: Loaded; env: Envelope; onClose
                 </p>
                 {goal.neededPerMonth !== null && goal.pct < 1 && (
                   <p className={goal.onTrack ? "text-good" : "text-ink-soft"}>
-                    Needs {kes(goal.neededPerMonth)}/month · recent pace {kes(goal.pacePerMonth)}/month
+                    Needs {kes(goal.neededPerMonth)}/month{goal.onTrack !== null && ` · recent pace ${kes(goal.pacePerMonth)}/month`}
                     {goal.projectedMonth && ` · on pace for ${fmtMonthShort(goal.projectedMonth)}`}
                   </p>
                 )}

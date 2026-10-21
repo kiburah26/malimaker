@@ -8,7 +8,7 @@ import { Sheet } from "@/components/Sheet";
 import { Bar, Loading, SectionTitle } from "@/components/ui";
 import { useLoaded, type Loaded } from "@/lib/data";
 import { envelopeEffect, goalProgress, monthlyTarget } from "@/lib/engine";
-import { fmtDay, fmtTime, kes, kesSigned, parseAmount } from "@/lib/format";
+import { fmtDay, fmtTime, kes, kesSigned, parseAmount, usd } from "@/lib/format";
 
 export function HomeScreen() {
   const m = useLoaded();
@@ -20,7 +20,10 @@ export function HomeScreen() {
   const active = envelopes.filter((e) => !e.archived);
   const overspent = active.filter((e) => (stats.get(e.id)?.balance ?? 0) < -0.5);
   const weekly = active.find((e) => e.period === "week");
-  const lifestyle = active.filter((e) => sliceOf(e) === "lifestyle");
+  const groupSort = new Map(groups.map((g) => [g.id, g.sort]));
+  const lifestyle = active
+    .filter((e) => sliceOf(e) === "lifestyle")
+    .sort((a, b) => groupSort.get(a.group_id)! - groupSort.get(b.group_id)! || a.sort - b.sort);
   const ef = active.find((e) => sliceOf(e) === "emergency");
   const efGoal = ef ? goalProgress(ef, stats.get(ef.id), m.raw.allocations) : null;
 
@@ -203,7 +206,9 @@ function AssignSheet({ m, open, onClose }: { m: Loaded; open: boolean; onClose: 
 
 function WeeklyCard({ m, id }: { m: Loaded; id: string }) {
   const st = m.derived.stats.get(id)!;
-  const left = st.weekLimit - st.spentThisWeek;
+  // this week's allowance, but never more than the envelope actually holds
+  const left = Math.min(st.weekLimit - st.spentThisWeek, st.balance);
+  const unfunded = st.balance < st.weekLimit - st.spentThisWeek;
   return (
     <>
       <div className="flex items-baseline justify-between">
@@ -216,6 +221,7 @@ function WeeklyCard({ m, id }: { m: Loaded; id: string }) {
       <p className="mt-1 text-[13px] text-ink-faint">
         {kes(st.spentThisWeek)} of {kes(st.weekLimit)}
         {st.weekLimit < (m.derived.envById.get(id)?.target ?? 0) && " · smaller because last week went over"}
+        {unfunded && ` · the envelope only holds ${kes(Math.max(0, st.balance))}`}
       </p>
     </>
   );
@@ -258,7 +264,9 @@ function NightOut({ m }: { m: Loaded }) {
       <button type="button" onClick={() => setOpen(true)} className="card flex w-full items-center justify-between p-4 text-left">
         <span>
           <span className="block font-semibold">🌙 Going out tonight?</span>
-          <span className="text-[14px] text-ink-soft">Set tonight&rsquo;s cap now. Night out has {kes(avail)}.</span>
+          <span className="text-[14px] text-ink-soft">
+            Set tonight&rsquo;s cap now. {avail < 0 ? `Night out is ${kes(-avail)} over.` : `Night out has ${kes(avail)}.`}
+          </span>
         </span>
         <span aria-hidden className="text-2xl text-ink-faint">›</span>
       </button>
@@ -267,14 +275,18 @@ function NightOut({ m }: { m: Loaded }) {
           Decide now, while your judgement is 100%. Then put just this on M-Pesa line 2 and keep Fuliza off.
         </p>
         <div className="mb-3 flex flex-wrap gap-2">
-          {[1500, 2500, 3500].filter((v) => v <= Math.max(avail, 1500)).map((v) => (
+          {[1500, 2500, 3500].map((v) => (
             <button key={v} type="button" className="chip" aria-pressed={cap === String(v)} onClick={() => setCap(String(v))}>
               {kes(v)}
             </button>
           ))}
         </div>
         <input className="field num text-xl" inputMode="decimal" placeholder="Your cap" value={cap} onChange={(e) => setCap(e.target.value)} />
-        {parseAmount(cap) > avail && <p className="mt-2 text-[14px] text-over">That&rsquo;s more than Night out holds ({kes(avail)}).</p>}
+        {parseAmount(cap) > avail && (
+          <p className="mt-2 text-[14px] text-over">
+            {avail <= 0 ? "Night out is empty. Anything tonight comes off next cycle." : `That's more than Night out holds (${kes(avail)}).`}
+          </p>
+        )}
         <button
           className="btn btn-primary mt-4 w-full"
           disabled={!(parseAmount(cap) > 0)}
@@ -352,7 +364,7 @@ function Recent({ m }: { m: Loaded }) {
               </span>
               <span className={`num shrink-0 font-bold ${sign > 0 ? "text-good" : ""}`}>
                 {sign > 0 ? "+" : sign < 0 ? "−" : ""}
-                {acc?.currency === "USD" ? `$${t.amount}` : kes(t.amount + (sign < 0 ? t.fee : 0))}
+                {acc?.currency === "USD" ? usd(t.amount + (sign < 0 ? t.fee : 0)) : kes(t.amount + (sign < 0 ? t.fee : 0))}
               </span>
             </li>
           );

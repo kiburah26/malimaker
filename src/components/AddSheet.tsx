@@ -225,7 +225,7 @@ function SpendForm({ m, preset, done }: FormProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-[1fr_7.5rem] gap-3">
         <AccountSelect
           m={m}
           accounts={accounts}
@@ -237,7 +237,7 @@ function SpendForm({ m, preset, done }: FormProps) {
           label="Paid from"
         />
         <label className="block">
-          <span className="label">Fee (M-Pesa, bank…)</span>
+          <span className="label">Fee</span>
           <input className="field num" inputMode="decimal" placeholder="0" value={fee} onChange={(e) => setFee(e.target.value)} />
         </label>
       </div>
