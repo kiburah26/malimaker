@@ -6,7 +6,7 @@ import { Sheet } from "@/components/Sheet";
 import { Bar, Loading, Toggle } from "@/components/ui";
 import { useLoaded, type Loaded } from "@/lib/data";
 import { addMonths, dayKey, monthKey } from "@/lib/engine";
-import { fmtDay, fmtMonth, fmtTime, kes, usd } from "@/lib/format";
+import { fmtDay, fmtMonth, fmtTime, fromNairobiLocal, kes, nairobiLocalInput, parseAmount, usd } from "@/lib/format";
 import { supabase } from "@/lib/supabase/client";
 import type { Txn } from "@/lib/types";
 
@@ -190,33 +190,117 @@ function TxnSheet({ m, t, onClose }: { m: Loaded; t: Txn | null; onClose: () => 
 }
 
 function TxnDetail({ m, t, onClose }: { m: Loaded; t: Txn; onClose: () => void }) {
-  const [envelopeId, setEnvelopeId] = useState(t.envelope_id);
+  const { accById } = m.derived;
+  const acc = accById.get(t.account_id);
+  const unit = acc?.currency === "USD" ? "$" : "KES";
+  const isIncome = t.kind === "income";
+  const hasEnvelope = t.kind === "expense" || t.kind === "debt_payment";
+  const linkedAllocs = isIncome ? m.raw.allocations.filter((a) => a.txn_id === t.id).length : 0;
+  const [f, setF] = useState({
+    amount: String(t.amount),
+    fee: t.fee ? String(t.fee) : "",
+    toAmount: t.to_amount != null ? String(t.to_amount) : "",
+    accountId: t.account_id,
+    envelopeId: t.envelope_id,
+    when: nairobiLocalInput(new Date(t.at)),
+    note: t.note ?? "",
+    business: t.tags.includes("business"),
+  });
   const [busy, setBusy] = useState(false);
-  const canMove = t.kind === "expense" || t.kind === "debt_payment";
-  const linkedAllocs = t.kind === "income" ? m.raw.allocations.filter((a) => a.txn_id === t.id).length : 0;
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+  const amount = parseAmount(f.amount);
+  const fee = parseAmount(f.fee) || 0;
+  const valid = isIncome || (t.kind === "adjust" ? Number.isFinite(amount) : amount > 0);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid || busy) return;
+    setBusy(true);
+    const patch: Partial<Txn> = {
+      at: fromNairobiLocal(f.when),
+      note: f.note.trim() || null,
+      tags: f.business ? [...new Set([...t.tags, "business"])] : t.tags.filter((x) => x !== "business"),
+    };
+    if (!isIncome) {
+      const rate = accById.get(f.accountId)?.currency === "USD" ? t.rate : 1;
+      Object.assign(patch, { amount, fee, account_id: f.accountId, rate });
+      if (hasEnvelope) Object.assign(patch, { envelope_id: f.envelopeId, kes_value: Math.round((amount + fee) * rate * 100) / 100 });
+      if (t.kind === "transfer") {
+        const converting = accById.get(f.accountId)?.currency !== accById.get(t.to_account_id ?? "")?.currency;
+        Object.assign(patch, {
+          to_amount: converting ? parseAmount(f.toAmount) || amount : amount,
+          kes_value: t.envelope_id && fee ? Math.round(fee * rate * 100) / 100 : null,
+        });
+      }
+    }
+    const ok = await m.actions.updateTxn(t.id, patch);
+    setBusy(false);
+    if (ok) {
+      m.say("Updated");
+      onClose();
+    }
+  }
+
   return (
-    <div className="space-y-4">
-      <p className="text-ink-soft">
-        {fmtDay(t.at)} {fmtTime(t.at)} · {m.derived.accById.get(t.account_id)?.name}
-        {t.fee > 0 && ` · fee ${kes(t.fee * t.rate)}`}
-      </p>
-      {canMove && (
-        <>
-          <EnvelopePicker value={envelopeId} onChange={setEnvelopeId} label="Envelope" />
-          <button
-            type="button"
-            className="btn btn-primary w-full"
-            disabled={busy || envelopeId === t.envelope_id}
-            onClick={async () => {
-              setBusy(true);
-              if (await m.actions.updateTxn(t.id, { envelope_id: envelopeId })) onClose();
-              setBusy(false);
-            }}
-          >
-            Move to this envelope
-          </button>
-        </>
+    <form onSubmit={save} className="space-y-3">
+      {isIncome ? (
+        <p className="rounded-2xl bg-sunk p-3 text-[14px] text-ink-soft">
+          {unit} {f.amount} received{t.fee > 0 && `, after a ${unit} ${t.fee} fee`}. It was split into {linkedAllocs} envelopes, so the amount
+          can&rsquo;t be edited here. To change it, delete this and log the income again, and it splits afresh.
+        </p>
+      ) : (
+        <div className="grid grid-cols-[1fr_7.5rem] gap-3">
+          <label className="block">
+            <span className="label">Amount ({unit})</span>
+            <input className="field num text-xl" inputMode="decimal" value={f.amount} onChange={(e) => set("amount", e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="label">Fee ({unit})</span>
+            <input className="field num text-xl" inputMode="decimal" placeholder="0" value={f.fee} onChange={(e) => set("fee", e.target.value)} />
+          </label>
+        </div>
       )}
+      {t.kind === "transfer" && accById.get(t.account_id)?.currency !== accById.get(t.to_account_id ?? "")?.currency && (
+        <label className="block">
+          <span className="label">Amount that landed ({accById.get(t.to_account_id ?? "")?.currency})</span>
+          <input className="field num" inputMode="decimal" value={f.toAmount} onChange={(e) => set("toAmount", e.target.value)} />
+        </label>
+      )}
+      {hasEnvelope && <EnvelopePicker value={f.envelopeId} onChange={(id) => set("envelopeId", id)} label="Envelope" />}
+      {!isIncome && (
+        <label className="block">
+          <span className="label">{t.kind === "transfer" ? "From account" : "Account"}</span>
+          <select className="field" value={f.accountId} onChange={(e) => set("accountId", e.target.value)}>
+            {m.raw.accounts
+              .filter((a) => !a.archived && a.currency === acc?.currency)
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="label">When</span>
+          <input type="datetime-local" className="field" value={f.when} onChange={(e) => set("when", e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="label">Note</span>
+          <input className="field" value={f.note} onChange={(e) => set("note", e.target.value)} />
+        </label>
+      </div>
+      {hasEnvelope && <Toggle checked={f.business} onChange={(v) => set("business", v)} label="Business expense" hint="Tagged for tax filing" />}
+      {hasEnvelope && amount > 0 && (
+        <p className="text-[14px] text-ink-soft">
+          Comes out of {m.derived.envById.get(f.envelopeId ?? "")?.name ?? "no envelope"}: {kes((amount + fee) * (acc?.currency === "USD" ? t.rate : 1))}
+          {fee > 0 && " including the fee"}.
+        </p>
+      )}
+      <button className="btn btn-primary w-full" disabled={!valid || busy}>
+        {busy ? "Saving…" : "Save changes"}
+      </button>
       <button
         type="button"
         className="btn w-full text-over"
@@ -232,6 +316,6 @@ function TxnDetail({ m, t, onClose }: { m: Loaded; t: Txn; onClose: () => void }
       >
         Delete{linkedAllocs ? " (undoes its split too)" : ""}
       </button>
-    </div>
+    </form>
   );
 }

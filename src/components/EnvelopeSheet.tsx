@@ -6,7 +6,7 @@ import { EnvelopePicker } from "@/components/EnvelopePicker";
 import { Sheet } from "@/components/Sheet";
 import { Bar, LeftLabel, Segmented, Toggle } from "@/components/ui";
 import { useLoaded, type Loaded } from "@/lib/data";
-import { envelopeEffect, goalProgress, monthBudget, monthlyTarget } from "@/lib/engine";
+import { envelopeEffect, goalProgress, monthBudget, monthKey, monthlyTarget } from "@/lib/engine";
 import { fmtDate, fmtDay, fmtMonthShort, kes, parseAmount } from "@/lib/format";
 import type { Envelope } from "@/lib/types";
 
@@ -56,6 +56,7 @@ function EnvelopeDetail({ m, env, onClose }: { m: Loaded; env: Envelope; onClose
             <p className="text-[14px] text-ink-soft">Available</p>
             <p className={`num font-display text-4xl ${st.balance < 0 ? "text-over" : ""}`}>{kes(st.balance)}</p>
             {st.balance < 0 && <p className="mt-1 text-[14px] text-over">Overspent. This comes off the next cycle.</p>}
+            <AssignedThisMonth m={m} env={env} />
             {spending && mt > 0 && (
               <div className="mt-3 space-y-1.5 text-[14px]">
                 {env.period === "week" ? (
@@ -70,7 +71,7 @@ function EnvelopeDetail({ m, env, onClose }: { m: Loaded; env: Envelope; onClose
                   <>
                     <Bar value={st.spentThisMonth} max={mt} tone={st.spentThisMonth > mt ? "over" : "gold"} label="This month" />
                     <p className="text-ink-soft">
-                      Spent {kes(st.spentThisMonth)} of {kes(mt)} this month · funded {kes(st.fundedThisMonth)}
+                      Spent {kes(st.spentThisMonth)} of {kes(mt)} this month
                     </p>
                   </>
                 )}
@@ -396,5 +397,79 @@ export function EnvelopeRow({ m, env, onOpen }: { m: Loaded; env: Envelope; onOp
                 : "Holding"}
       </p>
     </button>
+  );
+}
+
+/**
+ * What this envelope was given this month (splits, moves, sweeps). Editing it moves the
+ * difference to or from Ready to assign, e.g. Rent 18,300 → 18,000 frees 300.
+ */
+function AssignedThisMonth({ m, env }: { m: Loaded; env: Envelope }) {
+  const month = monthKey(m.now);
+  const assigned = Math.round(
+    m.raw.allocations.filter((a) => a.envelope_id === env.id && a.kind !== "opening" && monthKey(a.at) === month).reduce((s, a) => s + a.amount, 0),
+  );
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(assigned));
+  const [busy, setBusy] = useState(false);
+  const next = Math.round(parseAmount(value));
+  const diff = Number.isFinite(next) ? next - assigned : 0;
+  const rta = m.derived.rta;
+
+  async function save() {
+    if (!diff) return setEditing(false);
+    setBusy(true);
+    const note = `Assigned changed from ${kes(assigned)} to ${kes(next)}`;
+    const ok = diff < 0 ? await m.actions.moveMoney(env.id, null, -diff, note) : await m.actions.moveMoney(null, env.id, diff, note);
+    setBusy(false);
+    if (ok) {
+      setEditing(false);
+      m.say(diff < 0 ? `${kes(-diff)} back to Ready to assign` : `${kes(diff)} taken from Ready to assign`);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <p className="mt-2 flex items-center justify-between gap-2 text-[14px] text-ink-soft">
+        <span>
+          Assigned this month: <strong className="num text-ink">{kes(assigned)}</strong>
+        </span>
+        <button
+          type="button"
+          className="chip"
+          onClick={() => {
+            setValue(String(assigned));
+            setEditing(true);
+          }}
+        >
+          Edit
+        </button>
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 space-y-2">
+      <label className="block">
+        <span className="label">Assigned this month</span>
+        <input className="field num text-xl" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+      </label>
+      {diff !== 0 && (
+        <p className={`text-[14px] ${diff > rta ? "text-over" : "text-ink-soft"}`}>
+          {diff < 0
+            ? `${kes(-diff)} goes back to Ready to assign.`
+            : diff > rta
+              ? `That needs ${kes(diff)} but Ready to assign has ${kes(rta)}. Free some up from another envelope first.`
+              : `${kes(diff)} comes from Ready to assign (${kes(rta)}).`}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-primary btn-small" disabled={busy || !Number.isFinite(next) || next < 0 || diff > rta} onClick={save}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button type="button" className="btn btn-quiet btn-small" onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
