@@ -378,7 +378,7 @@ function IncomeForm({ m, preset, done }: FormProps) {
           <strong className="text-ink">KES {kes(kesValue)}</strong>. When you convert, log it under Move and the app shows your real rate.
         </p>
       )}
-      <Toggle checked={taxable} onChange={setTaxable} label="Taxable income" hint={`${settings.tax_pct}% goes to Tax set-aside first`} />
+      <Toggle checked={taxable} onChange={setTaxable} label="Taxable income" hint={settings.tax_fixed != null ? `Tax set-aside gets its ${kes(settings.tax_fixed)} a month first` : `${settings.tax_pct}% goes to Tax set-aside first`} />
 
       {kesValue > 0 && (
         <div className="rounded-2xl bg-sunk p-4">

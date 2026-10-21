@@ -5,6 +5,8 @@ export type Split = Record<SurplusSlice, number>;
 export type Settings = {
   user_id: string;
   tax_pct: number;
+  /** Fixed KES a month for tax. When set, it replaces tax_pct. */
+  tax_fixed: number | null;
   split: Split;
   paychecks_per_month: number;
   usd_kes: number;
@@ -47,6 +49,8 @@ export type Envelope = {
   goal_amount: number | null;
   goal_date: string | null;
   priority: number;
+  /** Lifestyle: percent of the Lifestyle pot this envelope gets. */
+  share: number | null;
   home_account_id: string | null;
   sweep_to_id: string | null;
   protected: boolean;

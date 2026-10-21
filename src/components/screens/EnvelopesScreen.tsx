@@ -33,7 +33,10 @@ export function EnvelopesScreen() {
       <div className="mt-3 flex flex-wrap gap-2 text-[14px]">
         <span className="chip">Ready to assign · <span className="num">{kes(rta)}</span></span>
         <span className="chip">Essentials · <span className="num">{kes(total(1))}</span>/mo</span>
-        <span className="chip">Lifestyle · <span className="num">{kes(total(3))}</span>/mo</span>
+        <span className="chip">
+          Lifestyle ·{" "}
+          {active.some((e) => (e.share ?? 0) > 0) ? "a share of each paycheck" : <><span className="num">{kes(total(3))}</span>/mo</>}
+        </span>
       </div>
 
       <MonthEnd m={m} />

@@ -65,6 +65,11 @@ export function monthlyTarget(e: Pick<Envelope, "target" | "period">): number {
   return e.period === "week" ? (e.target * 52) / 12 : e.target;
 }
 
+/** What an envelope has to spend this month: its target, or for share envelopes, what came in. */
+export function monthBudget(e: Pick<Envelope, "target" | "period" | "share">, stat: Pick<EnvStat, "fundedThisMonth"> | undefined): number {
+  return (e.share ?? 0) > 0 ? stat?.fundedThisMonth ?? 0 : monthlyTarget(e);
+}
+
 // ---------------------------------------------------------------------------
 // effects of a transaction
 // ---------------------------------------------------------------------------
@@ -227,7 +232,7 @@ export type SplitPlan = {
 export type PlanInput = {
   kes: number;
   taxable: boolean;
-  settings: Pick<Settings, "tax_pct" | "split" | "paychecks_per_month">;
+  settings: Pick<Settings, "tax_pct" | "tax_fixed" | "split" | "paychecks_per_month">;
   groups: Group[];
   envelopes: Envelope[];
   stats: Map<string, Pick<EnvStat, "balance" | "fundedThisMonth">>;
@@ -289,9 +294,17 @@ export function planIncome(input: PlanInput): SplitPlan {
 
   let remaining = whole(input.kes);
 
-  // 1. Tax comes off the top
+  // 1. Tax comes off the top: a fixed amount a month (split across paychecks), or a percentage
   const taxEnv = of("tax")[0];
-  const tax = input.taxable && taxEnv ? whole((remaining * settings.tax_pct) / 100) : 0;
+  let tax = 0;
+  if (input.taxable && taxEnv) {
+    if (settings.tax_fixed != null) {
+      const left = Math.max(0, settings.tax_fixed - stat(taxEnv).fundedThisMonth);
+      tax = Math.min(remaining, Math.floor(Math.min(left, settings.tax_fixed / ppm)));
+    } else {
+      tax = whole((remaining * settings.tax_pct) / 100);
+    }
+  }
   if (taxEnv) give(taxEnv, tax);
   remaining -= tax;
 
@@ -312,9 +325,18 @@ export function planIncome(input: PlanInput): SplitPlan {
   }
   pots.emergency += surplus - potted; // rounding crumbs
 
-  // 4. Lifestyle: up to each envelope's target; the rest is saved
-  const lifeWants = of("lifestyle").map((e) => ({ e, want: shareFor(e, stat(e).fundedThisMonth, ppm) }));
-  const lifeFill = fillWants(pots.lifestyle, lifeWants, give);
+  // 4. Lifestyle. With shares set, the whole pot is divided by share, so it grows and shrinks
+  //    with income. Without shares, envelopes fill up to their targets and the rest is saved.
+  const lifestyle = of("lifestyle");
+  const shares = lifestyle.filter((e) => (e.share ?? 0) > 0);
+  let lifeFill: { left: number; short: number };
+  if (shares.length) {
+    const total = shares.reduce((s, e) => s + e.share!, 0);
+    lifeFill = fillWants(pots.lifestyle, shares.map((e) => ({ e, want: (pots.lifestyle * e.share!) / total })), give);
+    lifeFill.short = 0;
+  } else {
+    lifeFill = fillWants(pots.lifestyle, lifestyle.map((e) => ({ e, want: shareFor(e, stat(e).fundedThisMonth, ppm) })), give);
+  }
   let overflow = lifeFill.left;
 
   // 5. Sinking funds: steady monthly ones first, then goals in priority order
@@ -560,7 +582,7 @@ export function simulate(opts: {
   monthlyKes: number;
   months: number;
   taxable: boolean;
-  settings: Pick<Settings, "tax_pct" | "split" | "paychecks_per_month">;
+  settings: Pick<Settings, "tax_pct" | "tax_fixed" | "split" | "paychecks_per_month">;
   groups: Group[];
   envelopes: Envelope[];
   balances: Map<string, number>; // current envelope balances

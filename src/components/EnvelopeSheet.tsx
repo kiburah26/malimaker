@@ -6,7 +6,7 @@ import { EnvelopePicker } from "@/components/EnvelopePicker";
 import { Sheet } from "@/components/Sheet";
 import { Bar, LeftLabel, Segmented, Toggle } from "@/components/ui";
 import { useLoaded, type Loaded } from "@/lib/data";
-import { envelopeEffect, goalProgress, monthlyTarget } from "@/lib/engine";
+import { envelopeEffect, goalProgress, monthBudget, monthlyTarget } from "@/lib/engine";
 import { fmtDate, fmtDay, fmtMonthShort, kes, parseAmount } from "@/lib/format";
 import type { Envelope } from "@/lib/types";
 
@@ -28,7 +28,7 @@ function EnvelopeDetail({ m, env, onClose }: { m: Loaded; env: Envelope; onClose
   const group = groupById.get(env.group_id);
   const slice = sliceOf(env);
   const spending = slice === "needs" || slice === "lifestyle";
-  const mt = monthlyTarget(env);
+  const mt = monthBudget(env, st);
   const goal = env.goal_amount ? goalProgress(env, st, m.raw.allocations) : null;
   const recent = m.raw.txns.filter((t) => envelopeEffect(t) && t.envelope_id === env.id).slice(0, 12);
 
@@ -209,6 +209,7 @@ function EditEnvelope({ m, env, done, onArchived }: { m: Loaded; env: Envelope; 
     goal_amount: env.goal_amount ? String(env.goal_amount) : "",
     goal_date: env.goal_date ?? "",
     priority: String(env.priority),
+    share: env.share != null ? String(env.share) : "",
     home_account_id: env.home_account_id ?? "",
     sweep_to_id: env.sweep_to_id ?? "",
     group_id: env.group_id,
@@ -230,6 +231,7 @@ function EditEnvelope({ m, env, done, onArchived }: { m: Loaded; env: Envelope; 
       goal_amount: parseAmount(f.goal_amount) > 0 ? parseAmount(f.goal_amount) : null,
       goal_date: f.goal_date || null,
       priority: Number(f.priority) || 0,
+      share: slice === "lifestyle" && parseAmount(f.share) > 0 ? parseAmount(f.share) : null,
       home_account_id: f.home_account_id || null,
       sweep_to_id: f.sweep_to_id || null,
       group_id: f.group_id,
@@ -268,6 +270,12 @@ function EditEnvelope({ m, env, done, onArchived }: { m: Loaded; env: Envelope; 
           ))}
         </select>
       </label>
+      {slice === "lifestyle" && (
+        <label className="block">
+          <span className="label">Share of the Lifestyle pot (%) · overrides the target</span>
+          <input className="field num" inputMode="decimal" value={f.share} onChange={(e) => set("share", e.target.value)} placeholder="e.g. 15" />
+        </label>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="label">{goalish ? "Steady amount" : "Target"} per</span>
@@ -347,7 +355,7 @@ function EditEnvelope({ m, env, done, onArchived }: { m: Loaded; env: Envelope; 
 export function EnvelopeRow({ m, env, onOpen }: { m: Loaded; env: Envelope; onOpen: (id: string) => void }) {
   const st = m.derived.stats.get(env.id)!;
   const slice = m.derived.sliceOf(env);
-  const mt = monthlyTarget(env);
+  const mt = monthBudget(env, st);
   const goal = env.goal_amount ? goalProgress(env, st, m.raw.allocations) : null;
   const weekly = env.period === "week";
   const spent = weekly ? st.spentThisWeek : st.spentThisMonth;
@@ -381,9 +389,11 @@ export function EnvelopeRow({ m, env, onOpen }: { m: Loaded; env: Envelope; onOp
               : `${Math.round(goal.pct * 100)}%`
           : spending && cap > 0
             ? `${kes(spent)} of ${kes(cap)} ${weekly ? "this week" : "this month"}`
-            : env.target > 0
-              ? `${kes(env.target)} a month`
-              : "Holding"}
+            : (env.share ?? 0) > 0
+              ? `${env.share}% of Lifestyle · nothing in yet this month`
+              : env.target > 0
+                ? `${kes(env.target)} a month`
+                : "Holding"}
       </p>
     </button>
   );

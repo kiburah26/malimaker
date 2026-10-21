@@ -158,7 +158,9 @@ export function GoalsScreen() {
           <p className="font-bold">🧾 Tax set aside</p>
           <p className="num font-display text-2xl">{kes(stats.get(taxEnv.id)?.balance ?? 0)}</p>
           <p className="text-[13px] text-ink-faint">
-            {m.raw.settings.tax_pct}% of taxable income, kept for filing. Change the % on the Plan screen once your tax preparer confirms.
+            {m.raw.settings.tax_fixed != null
+              ? `${kes(m.raw.settings.tax_fixed)} a month while you clear debt, kept for filing. Change it on the Plan screen.`
+              : `${m.raw.settings.tax_pct}% of taxable income, kept for filing. Change it on the Plan screen.`}
           </p>
         </div>
       )}

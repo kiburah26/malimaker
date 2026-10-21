@@ -20,6 +20,7 @@ import type { Account, Allocation, Debt, Envelope, Group, Txn } from "./types.ts
 
 const settings = {
   tax_pct: 25,
+  tax_fixed: null as number | null,
   split: { lifestyle: 10, sinking: 20, debt: 20, emergency: 45, invest: 5 },
   paychecks_per_month: 2,
 };
@@ -44,6 +45,7 @@ const env = (id: string, group_id: string, extra: Partial<Envelope> = {}): Envel
   goal_amount: null,
   goal_date: null,
   priority: 0,
+  share: null,
   home_account_id: null,
   sweep_to_id: null,
   protected: false,
@@ -243,4 +245,26 @@ test("simulation pays debt down and fills goals over time", () => {
   assert.ok(res.monthly.debt > 0);
   assert.ok(res.debtLeft < 203170);
   assert.equal(res.goals.find((g) => g.envelope.id === "fridge")!.reached, "2026-12"); // ~32k a month into sinking funds
+});
+
+test("fixed tax: 5,000 a month, half from each paycheck, nothing once the month is covered", () => {
+  const fixed = { ...settings, tax_fixed: 5000 };
+  const first = planIncome({ kes: 100000, taxable: true, settings: fixed, groups, envelopes, stats: blank(), debtOwed: 0 });
+  assert.equal(first.tax, 2500);
+  const stats = blank();
+  stats.set("tax", { balance: 5000, fundedThisMonth: 5000 });
+  const third = planIncome({ kes: 100000, taxable: true, settings: fixed, groups, envelopes, stats, debtOwed: 0 });
+  assert.equal(third.tax, 0);
+  assert.equal(sum(third.lines), 100000);
+});
+
+test("lifestyle shares: the whole pot is divided by share and scales with income", () => {
+  const shared = envelopes.concat([env("family", "g-life", { share: 30 })]).map((e) => (e.id === "night" ? { ...e, share: 70 } : e));
+  const small = planIncome({ kes: 100000, taxable: false, settings, groups, envelopes: shared, stats: blank(), debtOwed: 0 });
+  const big = planIncome({ kes: 300000, taxable: false, settings, groups, envelopes: shared, stats: blank(), debtOwed: 0 });
+  const got = (p: typeof small, id: string) => sum(p.lines.filter((l) => l.envelope_id === id));
+  assert.ok(Math.abs(got(small, "night") / got(small, "family") - 70 / 30) < 0.01);
+  assert.ok(got(big, "night") > got(small, "night") * 2.5, "more income, more lifestyle");
+  assert.equal(small.short.lifestyle, 0);
+  assert.equal(sum(big.lines), 300000);
 });
