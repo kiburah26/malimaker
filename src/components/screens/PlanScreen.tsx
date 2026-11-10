@@ -10,7 +10,7 @@ import type { Slice, Split, SurplusSlice } from "@/lib/types";
 
 const DEEL_FEE = 0.015;
 const SURPLUS: { key: SurplusSlice; label: string }[] = [
-  { key: "lifestyle", label: "Lifestyle" },
+  { key: "lifestyle", label: "Wants" },
   { key: "sinking", label: "Sinking funds" },
   { key: "debt", label: "Debt" },
   { key: "emergency", label: "Emergency fund" },
@@ -33,6 +33,7 @@ function Plan({ m }: { m: Loaded }) {
   const [tax, setTax] = useState(String(s.tax_pct));
   const [taxMode, setTaxMode] = useState<"fixed" | "percent">(s.tax_fixed != null ? "fixed" : "percent");
   const [taxFixed, setTaxFixed] = useState(String(s.tax_fixed ?? 5000));
+  const [cap, setCap] = useState(s.lifestyle_cap != null ? String(s.lifestyle_cap) : "");
   const [split, setSplit] = useState<Record<SurplusSlice, string>>(
     Object.fromEntries(SURPLUS.map(({ key }) => [key, String(s.split[key] ?? 0)])) as Record<SurplusSlice, string>,
   );
@@ -46,12 +47,14 @@ function Plan({ m }: { m: Loaded }) {
   const draftSettings = {
     tax_pct: Number(tax) || 0,
     tax_fixed: taxMode === "fixed" ? Math.max(0, parseAmount(taxFixed) || 0) : null,
+    lifestyle_cap: parseAmount(cap) > 0 ? parseAmount(cap) : null,
     split: draft,
     paychecks_per_month: Math.max(1, Number(ppm) || 1),
   };
   const changed =
     draftSettings.tax_pct !== s.tax_pct ||
     draftSettings.tax_fixed !== s.tax_fixed ||
+    draftSettings.lifestyle_cap !== s.lifestyle_cap ||
     draftSettings.paychecks_per_month !== s.paychecks_per_month ||
     SURPLUS.some(({ key }) => draft[key] !== (s.split[key] ?? 0));
 
@@ -74,7 +77,7 @@ function Plan({ m }: { m: Loaded }) {
       }),
     // draftSettings is rebuilt each render from these inputs
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [monthlyKes, months, tax, taxMode, taxFixed, ppm, JSON.stringify(draft), groups, envelopes, m.derived],
+    [monthlyKes, months, tax, taxMode, taxFixed, cap, ppm, JSON.stringify(draft), groups, envelopes, m.derived],
   );
 
   async function save() {
@@ -137,7 +140,7 @@ function Plan({ m }: { m: Loaded }) {
         </table>
         {sim.monthly.short > 0 && (
           <p className="mt-3 text-[14px] font-semibold text-over">
-            Your envelopes want {kes(sim.monthly.short)} more than this pays each month. Raise Lifestyle&rsquo;s %, or lower some targets below.
+            Your envelopes want {kes(sim.monthly.short)} more than this pays each month. Raise Wants&rsquo; %, or lower some targets below.
           </p>
         )}
       </div>
@@ -178,7 +181,7 @@ function Plan({ m }: { m: Loaded }) {
           </li>
         </ul>
         <p className="mt-2 text-[13px] text-ink-faint">
-          Projection over {months} months at this pay, assuming Needs and Lifestyle are spent each month. Fill order for sinking funds is set on each envelope.
+          Projection over {months} months at this pay, assuming Needs and Wants are spent each month. Fill order for sinking funds is set on each envelope.
         </p>
       </div>
 
@@ -211,7 +214,9 @@ function Plan({ m }: { m: Loaded }) {
             <input className="field num" inputMode="numeric" value={ppm} onChange={(e) => setPpm(e.target.value)} />
           </label>
         </div>
-        <p className="text-[14px] text-ink-soft">Then Needs get their fixed amounts. What&rsquo;s left splits:</p>
+        <p className="text-[14px] text-ink-soft">
+          Then Needs get their fixed amounts. What&rsquo;s left splits by these percentages. Wants stop at their cap; anything above it pays debt.
+        </p>
         <div className="grid grid-cols-2 gap-3">
           {SURPLUS.map(({ key, label }) => (
             <label key={key} className="block">
@@ -224,6 +229,10 @@ function Plan({ m }: { m: Loaded }) {
               />
             </label>
           ))}
+          <label className="block">
+            <span className="label">Wants cap (KES a month)</span>
+            <input className="field num" inputMode="decimal" placeholder="No cap" value={cap} onChange={(e) => setCap(e.target.value)} />
+          </label>
           <div className={`flex flex-col justify-end pb-3 font-bold ${sum === 100 ? "text-good" : "text-over"}`}>
             Total {sum}%{sum !== 100 && " (needs to be 100)"}
           </div>
@@ -244,7 +253,7 @@ function Plan({ m }: { m: Loaded }) {
   );
 }
 
-/** Needs: a fixed amount each. Lifestyle: a share (%) of the Lifestyle pot, so it moves with income. */
+/** Needs: a fixed amount each. Wants: a share (%) of the Wants pot, so it moves with income. */
 function Targets({ m, lifestyleMonthly }: { m: Loaded; lifestyleMonthly: number }) {
   const { groups, envelopes } = m.raw;
   const needGroups = groups.filter((g) => g.slice === "needs");
@@ -309,9 +318,9 @@ function Targets({ m, lifestyleMonthly }: { m: Loaded; lifestyleMonthly: number 
         ))}
       </div>
 
-      <SectionTitle>Lifestyle: shares of what comes in</SectionTitle>
+      <SectionTitle>Wants: shares of what comes in</SectionTitle>
       <p className="mb-2 text-[14px] text-ink-soft">
-        Each envelope gets its % of the Lifestyle pot, so a bigger month means more for each. At the pay above that&rsquo;s about{" "}
+        Each envelope gets its % of the Wants pot, so a bigger month means more for each. At the pay above that&rsquo;s about{" "}
         {kes(lifestyleMonthly)} a month.
       </p>
       <div className="card px-4 py-2">

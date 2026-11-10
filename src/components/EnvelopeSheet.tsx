@@ -273,7 +273,7 @@ function EditEnvelope({ m, env, done, onArchived }: { m: Loaded; env: Envelope; 
       </label>
       {slice === "lifestyle" && (
         <label className="block">
-          <span className="label">Share of the Lifestyle pot (%) · overrides the target</span>
+          <span className="label">Share of the Wants pot (%) · overrides the target</span>
           <input className="field num" inputMode="decimal" value={f.share} onChange={(e) => set("share", e.target.value)} placeholder="e.g. 15" />
         </label>
       )}
@@ -391,7 +391,7 @@ export function EnvelopeRow({ m, env, onOpen }: { m: Loaded; env: Envelope; onOp
           : spending && cap > 0
             ? `${kes(spent)} of ${kes(cap)} ${weekly ? "this week" : "this month"}`
             : (env.share ?? 0) > 0
-              ? `${env.share}% of Lifestyle · nothing in yet this month`
+              ? `${env.share}% of Wants · nothing in yet this month`
               : env.target > 0
                 ? `${kes(env.target)} a month`
                 : "Holding"}

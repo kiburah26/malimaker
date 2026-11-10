@@ -135,7 +135,9 @@ function useMaliState() {
     const accById = new Map(raw.accounts.map((a) => [a.id, a]));
     const sliceOf = (e: Envelope | undefined): Slice | undefined => (e ? groupById.get(e.group_id)?.slice : undefined);
     const debtOwed = raw.debts.filter((d) => !d.closed).reduce((s, d) => s + Math.max(0, debtBal.get(d.id) ?? 0), 0);
-    const nightEnv = raw.envelopes.find((e) => !e.archived && e.name.toLowerCase() === "night out");
+    const nightEnv =
+      raw.envelopes.find((e) => !e.archived && e.name.toLowerCase() === "night out") ??
+      raw.envelopes.find((e) => !e.archived && e.name.toLowerCase() === "lifestyle");
     const tonight =
       raw.settings.night_cap && raw.settings.night_started_at
         ? {

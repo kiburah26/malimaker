@@ -12,7 +12,7 @@ import type { Group } from "@/lib/types";
 const TIERS: { tier: 1 | 2 | 3; title: string; blurb: string; tone: string }[] = [
   { tier: 1, title: "Essentials", blurb: "Fixed amounts, filled first from every paycheck. Protected.", tone: "var(--tier-1)" },
   { tier: 2, title: "Building your future", blurb: "Tax, debt, emergency, investments and sinking funds. Protected.", tone: "var(--tier-2)" },
-  { tier: 3, title: "Lifestyle", blurb: "For enjoying life. Capped; it shrinks first in a lean month.", tone: "var(--tier-3)" },
+  { tier: 3, title: "Wants", blurb: "For enjoying life. Capped each month; anything above the cap pays debt.", tone: "var(--tier-3)" },
 ];
 
 export function EnvelopesScreen() {
@@ -34,7 +34,7 @@ export function EnvelopesScreen() {
         <span className="chip">Ready to assign · <span className="num">{kes(rta)}</span></span>
         <span className="chip">Essentials · <span className="num">{kes(total(1))}</span>/mo</span>
         <span className="chip">
-          Lifestyle ·{" "}
+          Wants ·{" "}
           {active.some((e) => (e.share ?? 0) > 0) ? "a share of each paycheck" : <><span className="num">{kes(total(3))}</span>/mo</>}
         </span>
       </div>

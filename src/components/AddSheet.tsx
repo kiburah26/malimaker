@@ -271,7 +271,7 @@ const SOURCES = ["Deel pay", "Gig", "DJ gig", "Gift", "Refund", "Other"];
 const SLICE_LABEL: Record<Slice, string> = {
   tax: "Tax set-aside",
   needs: "Needs",
-  lifestyle: "Lifestyle",
+  lifestyle: "Wants",
   sinking: "Sinking funds",
   debt: "Debt",
   emergency: "Emergency fund",
@@ -396,10 +396,10 @@ function IncomeForm({ m, preset, done }: FormProps) {
             ))}
           </ul>
           {plan.short.needs > 0 && (
-            <p className="mt-3 text-[14px] font-semibold text-over">Needs are {kes(plan.short.needs)} short this paycheck. Lean cycle: Lifestyle waits.</p>
+            <p className="mt-3 text-[14px] font-semibold text-over">Needs are {kes(plan.short.needs)} short this paycheck. Lean cycle: Wants wait.</p>
           )}
           {plan.short.lifestyle > 0 && plan.short.needs === 0 && (
-            <p className="mt-3 text-[14px] text-ink-soft">Lifestyle envelopes get {kes(plan.short.lifestyle)} less than their targets this time.</p>
+            <p className="mt-3 text-[14px] text-ink-soft">Wants envelopes get {kes(plan.short.lifestyle)} less than their targets this time.</p>
           )}
           {sweeps.length > 0 && (
             <p className="mt-3 text-[14px] text-ink-soft">
@@ -465,7 +465,7 @@ export function SplitBar({ bySlice, total }: { bySlice: Record<Slice, number>; t
 function MoveForm({ m, preset, done }: FormProps) {
   const accounts = openAccounts(m);
   const { accById, envelopes } = { ...m.derived, envelopes: m.raw.envelopes };
-  const buffer = envelopes.find((e) => e.name === "Buffer" && !e.archived);
+  const buffer = envelopes.find((e) => (e.name === "Household & health" || e.name === "Buffer") && !e.archived);
   const [fromId, setFromId] = useState(preset.accountId ?? accounts.find((a) => a.kind === "usd")?.id ?? accounts[0]?.id ?? "");
   const [toId, setToId] = useState(preset.toAccountId ?? accounts.find((a) => a.name === "I&M")?.id ?? accounts[1]?.id ?? "");
   const [amount, setAmount] = useState(preset.amount ? String(preset.amount) : "");

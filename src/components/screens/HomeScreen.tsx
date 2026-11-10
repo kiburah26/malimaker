@@ -89,7 +89,7 @@ export function HomeScreen() {
       )}
 
       <SectionTitle action={<Link href="/envelopes" className="text-[14px] font-semibold text-ink-soft underline">All envelopes</Link>}>
-        Lifestyle this month
+        Wants this month
       </SectionTitle>
       <div className="card ruled px-4">
         {lifestyle.map((e) => (

@@ -22,6 +22,7 @@ import type { Account, Allocation, Debt, Envelope, Group, Txn } from "./types.ts
 const settings = {
   tax_pct: 25,
   tax_fixed: null as number | null,
+  lifestyle_cap: null as number | null,
   split: { lifestyle: 10, sinking: 20, debt: 20, emergency: 45, invest: 5 },
   paychecks_per_month: 2,
 };
@@ -285,4 +286,18 @@ test("sinking funds repay an overspent sinking envelope before saving for goals"
   const got = (id: string) => sum(plan.lines.filter((l) => l.envelope_id === id));
   assert.ok(got("repairs") >= 30000, "the hole is repaid first");
   assert.ok(got("fridge") < plan.bySlice.sinking - 30000 + 1);
+});
+
+test("wants cap: a big month doesn't raise lifestyle; the extra pays debt", () => {
+  const capped = { ...settings, lifestyle_cap: 3000 };
+  const plan = planIncome({ kes: 300000, taxable: false, settings: capped, groups, envelopes, stats: blank(), debtOwed: 1e6 });
+  const uncapped = planIncome({ kes: 300000, taxable: false, settings, groups, envelopes, stats: blank(), debtOwed: 1e6 });
+  assert.ok(plan.bySlice.lifestyle <= 3000);
+  assert.ok(plan.bySlice.debt > uncapped.bySlice.debt);
+  assert.equal(sum(plan.lines), 300000);
+  // second paycheck in the same month: the cap is already used up
+  const stats = blank();
+  stats.set("night", { balance: 3000, fundedThisMonth: 3000 });
+  const second = planIncome({ kes: 100000, taxable: false, settings: capped, groups, envelopes, stats, debtOwed: 1e6 });
+  assert.equal(second.bySlice.lifestyle, 0);
 });

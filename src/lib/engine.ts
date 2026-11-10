@@ -237,7 +237,7 @@ export type SplitPlan = {
 export type PlanInput = {
   kes: number;
   taxable: boolean;
-  settings: Pick<Settings, "tax_pct" | "tax_fixed" | "split" | "paychecks_per_month">;
+  settings: Pick<Settings, "tax_pct" | "tax_fixed" | "lifestyle_cap" | "split" | "paychecks_per_month">;
   groups: Group[];
   envelopes: Envelope[];
   stats: Map<string, Pick<EnvStat, "balance" | "fundedThisMonth">>;
@@ -329,6 +329,17 @@ export function planIncome(input: PlanInput): SplitPlan {
     potted += pots[k];
   }
   pots.emergency += surplus - potted; // the odd shillings
+
+  // A good month doesn't raise your lifestyle: Wants stop at their monthly cap and the rest
+  // goes to Debt (to the Emergency fund once nothing is owed)
+  if (settings.lifestyle_cap != null) {
+    const given = of("lifestyle").reduce((s, e) => s + stat(e).fundedThisMonth, 0);
+    const room = roundDown(Math.max(0, settings.lifestyle_cap - given));
+    const extra = Math.max(0, pots.lifestyle - room);
+    pots.lifestyle -= extra;
+    if (input.debtOwed > 0) pots.debt += extra;
+    else pots.emergency += extra;
+  }
 
   // 4. Lifestyle. With shares set, the whole pot is divided by share, so it grows and shrinks
   //    with income. Without shares, envelopes fill up to their targets and the rest is saved.
@@ -595,7 +606,7 @@ export function simulate(opts: {
   monthlyKes: number;
   months: number;
   taxable: boolean;
-  settings: Pick<Settings, "tax_pct" | "tax_fixed" | "split" | "paychecks_per_month">;
+  settings: Pick<Settings, "tax_pct" | "tax_fixed" | "lifestyle_cap" | "split" | "paychecks_per_month">;
   groups: Group[];
   envelopes: Envelope[];
   balances: Map<string, number>; // current envelope balances

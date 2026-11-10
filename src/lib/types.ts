@@ -7,6 +7,8 @@ export type Settings = {
   tax_pct: number;
   /** Fixed KES a month for tax. When set, it replaces tax_pct. */
   tax_fixed: number | null;
+  /** Most KES Wants can get in a month; the rest goes to Debt. Null = no cap. */
+  lifestyle_cap: number | null;
   split: Split;
   paychecks_per_month: number;
   usd_kes: number;

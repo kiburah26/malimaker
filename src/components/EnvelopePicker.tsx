@@ -45,7 +45,7 @@ export function EnvelopePicker({
       if (usable.some((e) => e.id === t.envelope_id)) seen.push(t.envelope_id);
       if (seen.length >= 6) break;
     }
-    for (const name of ["Weekly", "Fare", "Night out", "Ordering out", "Airtime & bundles", "Food shopping"]) {
+    for (const name of ["Food", "Transport", "Lifestyle", "Bills & utilities", "Giving", "Household & health"]) {
       if (seen.length >= 6) break;
       const e = usable.find((x) => x.name === name);
       if (e && !seen.includes(e.id)) seen.push(e.id);
